@@ -306,10 +306,16 @@ static char *concat_path(const char *parent, const char *child) {
 	return new_path;
 }
 
+static int dirent_comp_name(const void *a, const void *b)
+{
+	return strncmp(((SceIoDirent*)a)->d_name, ((SceIoDirent*)b)->d_name, 256);
+}
+
 static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int added)
 {
 	SceUID did;
-	SceIoDirent dinfo;
+	SceIoDirent dinfo, *dlist = NULL;
+	int dlist_size = 0;
 	int err = 0;
 	char *new_path = NULL;
 	int64_t listid = 0;
@@ -327,7 +333,20 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 
 	err = sceIoDread(did, &dinfo);
 	while (err > 0) {
+		dlist_size++;
+		dlist = (SceIoDirent*)realloc(dlist, dlist_size * sizeof(SceIoDirent));
+		memcpy(dlist + dlist_size - 1, &dinfo, sizeof(SceIoDirent));
+
+		err = sceIoDread(did, &dinfo);
+	}
+	sceIoDclose(did);
+
+	qsort(dlist, dlist_size, sizeof(SceIoDirent), dirent_comp_name);
+
+	for (int i = 0; i < dlist_size; i++) {
+		dinfo = dlist[i];
 		new_path = concat_path(dir, dinfo.d_name);
+
 		if (SCE_S_ISDIR(dinfo.d_stat.st_mode)) {
 			// recursion, ewww
 			if (list) {
@@ -352,10 +371,9 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 			}
 		}
 		free(new_path);
-		err = sceIoDread(did, &dinfo);
 	} 
 
-	sceIoDclose(did);
+	free(dlist);
 
 	return added;
 }
