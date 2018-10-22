@@ -332,12 +332,28 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 		return 0;
 	}
 
-	/* Copy the entries into our list, expanding it as we go */
+	/* Just count the number of entries */
 	err = sceIoDread(did, &dinfo);
 	while (err > 0) {
 		dlist_size++;
-		dlist = (SceIoDirent*)realloc(dlist, dlist_size * sizeof(SceIoDirent));
-		memcpy(dlist + dlist_size - 1, &dinfo, sizeof(SceIoDirent));
+
+		err = sceIoDread(did, &dinfo);
+	}
+	sceIoDclose(did);
+
+	/* Re-open the directory */
+	did = sceIoDopen(dir);
+	if (did < 0) {
+		return 0;
+	}
+
+	/* Allocate memory for the list */
+	dlist = (SceIoDirent*)calloc(dlist_size, sizeof(SceIoDirent));
+
+	/* This time copy the entries into our list */
+	err = sceIoDread(did, &dinfo);
+	for (int i = 0; (err > 0) && (i < dlist_size); i++) {
+		memcpy(dlist + i, &dinfo, sizeof(SceIoDirent));
 
 		err = sceIoDread(did, &dinfo);
 	}
