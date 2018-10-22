@@ -326,11 +326,13 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 		listid = sql_get_listid(db, "_root");
 	}
 
+	/* First open the directory */
 	did = sceIoDopen(dir);
 	if (did < 0) {
 		return 0;
 	}
 
+	/* Copy the entries into our list, expanding it as we go */
 	err = sceIoDread(did, &dinfo);
 	while (err > 0) {
 		dlist_size++;
@@ -341,8 +343,10 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 	}
 	sceIoDclose(did);
 
+	/* Sort the list */
 	qsort(dlist, dlist_size, sizeof(SceIoDirent), dirent_comp_name);
 
+	/* Now work through the list */
 	for (int i = 0; i < dlist_size; i++) {
 		dinfo = dlist[i];
 		new_path = concat_path(dir, dinfo.d_name);
