@@ -169,7 +169,7 @@ static int64_t sql_get_listid(sqlite3 *db, const char *name)
 	while (loop < 2);
 
 fail:
-	return ret;
+	return -ret;
 }
 
 static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t duration, const char *list)
