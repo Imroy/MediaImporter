@@ -306,6 +306,10 @@ static char *concat_path(const char *parent, const char *child) {
 	return new_path;
 }
 
+/* How many dir entries to allocate at once in a list */
+static const int dlist_alloc_size = 10;
+
+/* Qsort comparison callback for sorting a dirent list */
 static int dirent_comp_name(const void *a, const void *b)
 {
 	return strncmp(((SceIoDirent*)a)->d_name, ((SceIoDirent*)b)->d_name, 256);
@@ -315,7 +319,7 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 {
 	SceUID did;
 	SceIoDirent dinfo, *dlist = NULL;
-	int dlist_size = 0;
+	int dlist_size = 0, dlist_allocated = 0;
 	int err = 0;
 	char *new_path = NULL;
 	int64_t listid = 0;
@@ -326,34 +330,22 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 		listid = sql_get_listid(db, "_root");
 	}
 
-	/* First open the directory */
+	/* Open the directory */
 	did = sceIoDopen(dir);
 	if (did < 0) {
 		return 0;
 	}
 
-	/* Just count the number of entries */
+	/* Read entries */
 	err = sceIoDread(did, &dinfo);
 	while (err > 0) {
+		if (dlist_size + 1 > dlist_allocated) {
+			dlist_allocated += dlist_alloc_size;
+			dlist = (SceIoDirent*)realloc(dlist, dlist_allocated * sizeof(SceIoDirent));
+			memset(&dlist[dlist_size], 0, dlist_alloc_size * sizeof(SceIoDirent));
+		}
+		memcpy(dlist + dlist_size, &dinfo, sizeof(SceIoDirent));
 		dlist_size++;
-
-		err = sceIoDread(did, &dinfo);
-	}
-	sceIoDclose(did);
-
-	/* Re-open the directory */
-	did = sceIoDopen(dir);
-	if (did < 0) {
-		return 0;
-	}
-
-	/* Allocate memory for the list */
-	dlist = (SceIoDirent*)calloc(dlist_size, sizeof(SceIoDirent));
-
-	/* This time copy the entries into our list */
-	err = sceIoDread(did, &dinfo);
-	for (int i = 0; (err > 0) && (i < dlist_size); i++) {
-		memcpy(dlist + i, &dinfo, sizeof(SceIoDirent));
 
 		err = sceIoDread(did, &dinfo);
 	}
