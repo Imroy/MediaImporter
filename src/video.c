@@ -172,7 +172,7 @@ fail:
 	return -ret;
 }
 
-static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t duration, const char *list)
+static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t duration, int64_t listid)
 {
 	int ret = 0;
 	sqlite3_stmt *stmt;
@@ -180,7 +180,6 @@ static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t
 
 	const char *title, *ext;
 	int path_len, title_len, ext_len, pos;
-	int64_t listid = 0;
 
 	pos = 0;
 	title = ext = path;
@@ -198,10 +197,6 @@ static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t
 			break;
 		}
 		pos++;
-	}
-
-	if (list) {
-		listid = sql_get_listid(db, list);
 	}
 
 	path_len = pos;
@@ -251,7 +246,7 @@ static int sql_insert_video(sqlite3 *db, const char *path, size_t size, uint32_t
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 
-	if (list) {
+	if (listid > 0) {
 		sqlite3_stmt *stmt2;
 		const char *sql2 = insert_contentitem_sql;
 
@@ -317,6 +312,13 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 	SceIoDirent dinfo;
 	int err = 0;
 	char *new_path = NULL;
+	int64_t listid = 0;
+
+	if (list) {
+		listid = sql_get_listid(db, list);
+	} else {
+		listid = sql_get_listid(db, "_root");
+	}
 
 	did = sceIoDopen(dir);
 	if (did < 0) {
@@ -343,12 +345,7 @@ static int add_videos_int(sqlite3 *db, const char *dir, const char *list, int ad
 				int c = sql_get_count(db, select_content_count_sql, new_path);
 				if (c == 0) {
 					uint32_t dur = get_mp4_duration(new_path);
-					if (list) {
-						sql_insert_video(db, new_path, dinfo.d_stat.st_size, dur, list);
-					}
-					else {
-						sql_insert_video(db, new_path, dinfo.d_stat.st_size, dur, "_root");
-					}
+					sql_insert_video(db, new_path, dinfo.d_stat.st_size, dur, listid);
 					added++;
 					printf("Added %d videos\r", added);
 				}
